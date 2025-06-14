@@ -70,7 +70,7 @@ fun LoginScreen(
         uiState = loginViewModel.loginUiState,
         onUsernameChange = loginViewModel::onUsernameChange,
         onPasswordChange = loginViewModel::onPasswordChange,
-        onLoginClick = { loginViewModel.attemptLogin() },
+        onLoginClick = loginViewModel::attemptLogin,
         onLoginSuccess = onLoginSuccess
     )
 }
