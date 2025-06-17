@@ -50,7 +50,8 @@ class LoginActivity : ComponentActivity() {
                 LoginScreen(
                     loginViewModel = loginViewModel,
                     onLoginSuccess = {
-                        // 登录成功后的操作，比如跳转到主界面
+                        // 登录成功后的操作，设置结果并返回主界面
+                        setResult(RESULT_OK)
                         finish()
                     }
                 )

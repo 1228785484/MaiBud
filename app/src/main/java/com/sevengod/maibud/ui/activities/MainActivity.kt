@@ -30,15 +30,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import com.sevengod.maibud.data.viewmodels.DataInitState
 import com.sevengod.maibud.data.viewmodels.MusicViewModel
 import com.sevengod.maibud.data.viewmodels.MusicViewModelFactory
+import com.sevengod.maibud.data.viewmodels.LoginViewModel
+import com.sevengod.maibud.data.viewmodels.LoginViewModelFactory
+import com.sevengod.maibud.repository.LoginRepository
 import com.sevengod.maibud.ui.fragments.MusicListFragment
 import com.sevengod.maibud.ui.fragments.ProfileFragment
 import com.sevengod.maibud.ui.fragments.ToolsListFragment
 import com.sevengod.maibud.ui.theme.MaiBudTheme
+import com.sevengod.maibud.ui.activities.LoginActivity
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,8 +58,16 @@ class MainActivity : ComponentActivity() {
                     factory = MusicViewModelFactory(this@MainActivity)
                 )
                 
+                val loginViewModel: LoginViewModel = viewModel(
+                    factory = LoginViewModelFactory(
+                        LoginRepository,
+                        this@MainActivity
+                    )
+                )
+                
                 MaiBudApp(
-                    musicViewModel = musicViewModel
+                    musicViewModel = musicViewModel,
+                    loginViewModel = loginViewModel
                 )
             }
         }
@@ -61,10 +77,26 @@ class MainActivity : ComponentActivity() {
 @PreviewScreenSizes
 @Composable
 fun MaiBudApp(
-    musicViewModel: MusicViewModel? = null
+    musicViewModel: MusicViewModel? = null,
+    loginViewModel: LoginViewModel? = null
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.MUSIC_LIST) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // 应用启动时检查登录状态
+    LaunchedEffect(loginViewModel) {
+        loginViewModel?.loadCurrentUserFromStorage()
+    }
+    
+    // 登录Activity启动器
+    val loginLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // LoginActivity返回后，无论结果如何都重新检查登录状态
+        // 这样可以确保ProfileFragment得到最新的登录状态
+        loginViewModel?.loadCurrentUserFromStorage()
+    }
 
     // 监听数据初始化状态
     musicViewModel?.let { viewModel ->
@@ -131,7 +163,12 @@ fun MaiBudApp(
                     modifier = Modifier.padding(innerPadding)
                 )
                 AppDestinations.PROFILE -> ProfileFragment(
-                    modifier = Modifier.padding(innerPadding)
+                    modifier = Modifier.padding(innerPadding),
+                    loginViewModel = loginViewModel,
+                    onLoginRequest = {
+                        val intent = Intent(context, LoginActivity::class.java)
+                        loginLauncher.launch(intent)
+                    }
                 )
             }
         }

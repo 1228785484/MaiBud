@@ -1,18 +1,27 @@
 package com.sevengod.maibud.ui.fragments
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sevengod.maibud.data.model.BasicInfo
@@ -28,6 +38,23 @@ import com.sevengod.maibud.data.model.Song
 import com.sevengod.maibud.data.viewmodels.DataInitState
 import com.sevengod.maibud.data.viewmodels.MusicViewModel
 import com.sevengod.maibud.ui.theme.MaiBudTheme
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
+// 添加难度enum定义
+enum class Difficulty(val index: Int, val displayName: String, val color: Color) {
+    BASIC(0, "BASIC", Color(0xFF34D399)),      // #34d399 绿色
+    ADVANCED(1, "ADVANCED", Color(0xFFFBBF24)), // #fbbf24 黄色
+    EXPERT(2, "EXPERT", Color(0xFFEF4444)),     // #ef4444 红色
+    MASTER(3, "MASTER", Color(0xFF8B5CF6)),     // #8b5cf6 紫色
+    REMASTER(4, "REMASTER", Color(0xFFBC6DE0))  // #ec4899 粉色
+}
 
 @Composable
 fun MusicListFragment(
@@ -45,22 +72,25 @@ fun MusicListFragment(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
+
         // 根据数据初始化状态显示不同内容
         when (val initState = musicViewModel?.dataInitState) {
             is DataInitState.Loading -> {
                 LoadingContent()
             }
+
             is DataInitState.Success -> {
                 val songList = musicViewModel.getSongData() ?: emptyList()
                 SuccessContent(songList = songList)
             }
+
             is DataInitState.Error -> {
                 ErrorContent(
                     errorMessage = initState.message,
                     onRetry = { musicViewModel?.initializeData() }
                 )
             }
+
             is DataInitState.Idle, null -> {
                 // 如果状态是Idle或ViewModel为null，显示初始化提示
                 IdleContent()
@@ -106,7 +136,7 @@ private fun SuccessContent(
             color = Color.Gray,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
+
         if (songList.isEmpty()) {
             // 空状态显示
             EmptyContent()
@@ -115,7 +145,14 @@ private fun SuccessContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(songList) { song ->
-                    SongCard(song = song)
+                    var currentDifficulty by remember { mutableStateOf(Difficulty.EXPERT) }
+                    SongCard(
+                        song = song,
+                        currentDifficulty = currentDifficulty,
+                        onDifficultyChange = { newDifficulty ->
+                            currentDifficulty = newDifficulty
+                        }
+                    )
                 }
             }
         }
@@ -191,6 +228,8 @@ private fun EmptyContent(
 @Composable
 private fun SongCard(
     song: Song,
+    currentDifficulty: Difficulty = Difficulty.EXPERT,
+    onDifficultyChange: (Difficulty) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -198,35 +237,223 @@ private fun SongCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(all=16.dp)
         ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            //第一层,难度选择方框
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                repeat(song.level.size) { index ->
+                    val difficulty = Difficulty.values().getOrNull(index)
+                    if (difficulty != null) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    color = if (currentDifficulty.index == index) 
+                                        difficulty.color.copy(alpha = 0.7f) 
+                                    else Color.White,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .border(
+                                    width = if (currentDifficulty.index == index) 2.dp else 1.dp,
+                                    color = if (currentDifficulty.index == index) 
+                                        difficulty.color 
+                                    else Color.Gray,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .clickable { 
+                                    onDifficultyChange(difficulty)
+                                }
+                        ){
+                            Text(
+                                text=song.level[index],
+                                color = if (currentDifficulty.index == index) Color.White else Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            //第二层,歌曲图片+谱师+曲师 - 添加滑动支持
+            val pagerState = rememberPagerState(
+                initialPage = currentDifficulty.index,
+                pageCount = { song.level.size }
             )
             
-            Text(
-                text = "艺术家: ${song.basicInfo.artist}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            // 监听页面变化并更新难度
+            LaunchedEffect(pagerState.currentPage) {
+                val newDifficulty = Difficulty.values().getOrNull(pagerState.currentPage)
+                if (newDifficulty != null && newDifficulty != currentDifficulty) {
+                    onDifficultyChange(newDifficulty)
+                }
+            }
             
-            Text(
-                text = "类型: ${song.basicInfo.genre} | BPM: ${song.basicInfo.bpm}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            // 当外部难度变化时更新pager
+            LaunchedEffect(currentDifficulty) {
+                if (pagerState.currentPage != currentDifficulty.index) {
+                    pagerState.animateScrollToPage(currentDifficulty.index)
+                }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+            ) { page ->
+                val difficulty = Difficulty.values().getOrNull(page)
+                val charter = song.charts.getOrNull(page)?.charter ?: "无"
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .background(
+                                color = Color(0xFF4A90A4), // 深蓝绿色背景
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                    ) {
+                        //For Glide
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(96.dp), // 与图片高度保持一致
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = song.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Text(
+                            text = "曲师:${song.basicInfo.artist}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        Text(
+                            text = "谱师:$charter",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
             
-            if (song.level.isNotEmpty()) {
+            //第三层,完成率显示和FC/AP状态按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧：完成率显示
                 Text(
-                    text = "难度: ${song.level.joinToString(" / ")}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp)
+                    text = "100.XXXX%", // 这里显示具体的完成率，如："95.67%"
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
                 )
+
+                // 中间：判定等级图片展示框（SSS/SS/S/A/B/C等）
+                Box(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .width(60.dp)
+                        .background(
+                            color = Color.White,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = Color.Gray,
+                            shape = RoundedCornerShape(4.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 这里可以放置判定等级的drawable图片
+                    // Image(
+                    //     painter = painterResource(id = R.drawable.rank_sss),
+                    //     contentDescription = "Rank SSS",
+                    //     modifier = Modifier.fillMaxSize()
+                    // )
+
+                    // 临时显示文字，实际使用时替换为图片
+                    Text(
+                        text = "SSS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                }
+
+                // 右侧：FC和AP状态图片展示框
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // FC状态图片展示框
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                color = Color.White,
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Color.Gray,
+                                shape = CircleShape
+                            )
+                    ) {
+                        // 这里可以放置FC状态的drawable图片
+                        // Image(
+                        //     painter = painterResource(id = R.drawable.fc_icon),
+                        //     contentDescription = "FC Status",
+                        //     modifier = Modifier.fillMaxSize()
+                        // )
+                    }
+
+                    // AP状态图片展示框
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                color = Color.White,
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Color.Gray,
+                                shape = CircleShape
+                            )
+                    ) {
+                        // 这里可以放置AP状态的drawable图片
+                        // Image(
+                        //     painter = painterResource(id = R.drawable.ap_icon),
+                        //     contentDescription = "AP Status",
+                        //     modifier = Modifier.fillMaxSize()
+                        // )
+                    }
+                }
             }
         }
     }
@@ -239,6 +466,7 @@ fun MusicListPreview() {
         MusicListFragment()
     }
 }
+
 // 新增的 SongCard Preview
 @Preview(showBackground = true, name = "SongCard Preview")
 @Composable

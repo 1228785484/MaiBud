@@ -4,15 +4,17 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.sevengod.maibud.data.entities.UserProfile
 import com.sevengod.maibud.data.model.LoginResponse // Assuming LoginResponse is in data.model
 import com.sevengod.maibud.repository.LoginRepository
 import com.sevengod.maibud.utils.DBUtils
+import com.sevengod.maibud.utils.DSUtils
 import kotlinx.coroutines.launch
 
 // Sealed interface to represent the different states of the login UI
@@ -36,8 +38,8 @@ class LoginViewModel(
 
     var loginUiState by mutableStateOf<LoginUiState>(LoginUiState.Idle)
         private set
-    private val _currentUser = MutableLiveData<UserProfile?>()
-    val currentUser: LiveData<UserProfile?> = _currentUser
+    private val _currentUser = MutableStateFlow<UserProfile?>(null)
+    val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
 
 
     fun onUsernameChange(newUsername: String) {
@@ -67,14 +69,20 @@ class LoginViewModel(
                 val result = loginRepository.getLoginToken(username, password)
                 result.fold(
                     onSuccess = { loginResponse ->
-                        // 保存用户数据到数据库
-                        saveUserToDatabase(loginResponse)
-                        //保存当前用户值
-                        _currentUser.value = UserProfile(
+                        val userProfile = UserProfile(
                             username = username,
                             jwtToken = loginResponse.jwt ?: "",
-                            nickname = password
+                            nickname = username
                         )
+
+                        // 保存用户数据到数据库
+                        saveUserToDatabase(loginResponse)
+
+                        // 保存当前用户到DSUtils
+                        saveCurrentUserToStorage(userProfile)
+
+                        //保存当前用户值
+                        _currentUser.value = userProfile
 
                         loginUiState = LoginUiState.Success(loginResponse)
                     },
@@ -115,7 +123,86 @@ class LoginViewModel(
             e.printStackTrace()
         }
     }
+
+    /**
+     * 登出当前用户
+     */
+    fun logout() {
+        viewModelScope.launch {
+            try {
+                // 清除当前用户状态
+                _currentUser.value = null
+
+                // 清除DSUtils中的用户信息
+                clearCurrentUserFromStorage()
+
+                // 可选：清除数据库中的用户信息
+                // val database = DBUtils.getDatabase(context)
+                // val userDao = database.userDao()
+                // userDao.deleteUser(currentUser.value?.username ?: "")
+
+                // 重置登录状态
+                loginUiState = LoginUiState.Idle
+                username = ""
+                password = ""
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+    /**
+     * 保存当前用户信息到DSUtils
+     */
+    private suspend fun saveCurrentUserToStorage(userProfile: UserProfile) {
+        try {
+            DSUtils.storeData(context, "current_user_username", userProfile.username)
+            DSUtils.storeData(context, "current_user_jwt", userProfile.jwtToken)
+            DSUtils.storeData(context, "current_user_nickname", userProfile.nickname?:"")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * 从DSUtils加载当前用户信息
+     */
+    fun loadCurrentUserFromStorage() {
+        viewModelScope.launch {
+            try {
+                val username = DSUtils.getData(context, "current_user_username")
+                val jwt = DSUtils.getData(context, "current_user_jwt")
+                val nickname = DSUtils.getData(context, "current_user_nickname")
+
+                if (username != null && jwt != null && nickname != null) {
+                    val userProfile = UserProfile(
+                        username = username,
+                        jwtToken = jwt,
+                        nickname = nickname
+                    )
+                    _currentUser.value = userProfile
+                    this@LoginViewModel.username = username
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * 清除DSUtils中的用户信息
+     */
+    private suspend fun clearCurrentUserFromStorage() {
+        try {
+            DSUtils.removeData(context, "current_user_username")
+            DSUtils.removeData(context, "current_user_jwt")
+            DSUtils.removeData(context, "current_user_nickname")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }
+
 
 /**
  * Factory for creating LoginViewModel instances with a LoginRepository dependency.
