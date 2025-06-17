@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.devtools.ksp") version "2.0.21-1.0.27"
+    id("com.google.dagger.hilt.android") version "2.56.2"
+}
+repositories{
+
 }
 
 android {
@@ -71,6 +75,9 @@ dependencies {
     ksp("androidx.room:room-compiler:$room_version")
     implementation("com.github.bumptech.glide:glide:4.16.0")
     implementation("org.jsoup:jsoup:1.18.1")
+    implementation("com.google.dagger:hilt-android:2.56.2")
+    ksp("com.google.dagger:hilt-android-compiler:2.56.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2") // Or the latest version
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.annotation)

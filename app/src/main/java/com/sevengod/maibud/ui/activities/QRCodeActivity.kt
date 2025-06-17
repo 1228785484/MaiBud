@@ -69,8 +69,10 @@ fun QRCodeScreen(
         uiState = viewModel.qrCodeUiState,
         onMaiIdChange = viewModel::onMaiIdChange,
         onGetQRCode = viewModel::fetchQRCode,
+        onGetSaveStatus = viewModel::getStoreStatus,
         modifier = modifier
     )
+
 }
 
 @Composable
@@ -80,6 +82,7 @@ fun QRCodeScreenStateless(
     uiState: QRCodeUiState,
     onMaiIdChange: (String) -> Unit,
     onGetQRCode: () -> Unit,
+    onGetSaveStatus: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -98,6 +101,11 @@ fun QRCodeScreenStateless(
             else -> {}
         }
     }
+    // 进入界面时自动加载二维码
+    LaunchedEffect(Unit) {
+        onGetQRCode()
+    }
+
 
     Scaffold(
         modifier = modifier.fillMaxSize()
@@ -129,7 +137,7 @@ fun QRCodeScreenStateless(
             Button(
                 onClick = onGetQRCode,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = uiState !is QRCodeUiState.Loading && maiId.isNotBlank()
+                enabled = uiState !is QRCodeUiState.Loading// && maiId.isNotBlank() 这块边界条件后续应用其他方式修正
             ) {
                 if (uiState is QRCodeUiState.Loading) {
                     CircularProgressIndicator(
@@ -141,6 +149,13 @@ fun QRCodeScreenStateless(
                 }
                 Text("获取二维码")
             }
+
+            val DBStatusText = if (onGetSaveStatus()) "数据库内存在数据,可直接获取" else "数据库中不存在数据,请填写MAID"
+
+            Text(
+                modifier = Modifier.fillMaxWidth(),
+                text = DBStatusText
+            )
 
             // 显示错误信息
             if (uiState is QRCodeUiState.Error) {
@@ -221,7 +236,8 @@ fun QRCodeScreenPreview() {
             maiId = "TEST123",
             uiState = QRCodeUiState.Idle,
             onMaiIdChange = {},
-            onGetQRCode = {}
+            onGetQRCode = {},
+            onGetSaveStatus = {false}
         )
     }
 }

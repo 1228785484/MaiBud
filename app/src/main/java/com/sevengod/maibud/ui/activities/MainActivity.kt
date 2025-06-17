@@ -12,18 +12,29 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sevengod.maibud.data.viewmodels.DataInitState
+import com.sevengod.maibud.data.viewmodels.MusicViewModel
+import com.sevengod.maibud.data.viewmodels.MusicViewModelFactory
 import com.sevengod.maibud.ui.fragments.MusicListFragment
 import com.sevengod.maibud.ui.fragments.ProfileFragment
 import com.sevengod.maibud.ui.fragments.ToolsListFragment
@@ -35,7 +46,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MaiBudTheme {
-                MaiBudApp()
+                val musicViewModel: MusicViewModel = viewModel(
+                    factory = MusicViewModelFactory(this@MainActivity)
+                )
+                
+                MaiBudApp(
+                    musicViewModel = musicViewModel
+                )
             }
         }
     }
@@ -43,8 +60,33 @@ class MainActivity : ComponentActivity() {
 
 @PreviewScreenSizes
 @Composable
-fun MaiBudApp() {
+fun MaiBudApp(
+    musicViewModel: MusicViewModel? = null
+) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.MUSIC_LIST) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 监听数据初始化状态
+    musicViewModel?.let { viewModel ->
+        LaunchedEffect(viewModel.dataInitState) {
+            when (val state = viewModel.dataInitState) {
+                is DataInitState.Success -> {
+                    snackbarHostState.showSnackbar(
+                        message = "数据初始化完成！歌曲数量: ${viewModel.getSongData()?.size ?: 0}",
+                        duration = SnackbarDuration.Short
+                    )
+                }
+                is DataInitState.Error -> {
+                    snackbarHostState.showSnackbar(
+                        message = "数据初始化失败: ${state.message}",
+                        duration = SnackbarDuration.Long
+                    )
+                    viewModel.goInitState()
+                }
+                else -> { /* 不处理其他状态 */ }
+            }
+        }
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -63,10 +105,27 @@ fun MaiBudApp() {
             }
         }
     ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            floatingActionButton = {
+                // 只在数据不在加载状态时显示刷新按钮
+                if (musicViewModel?.dataInitState !is DataInitState.Loading) {
+                    FloatingActionButton(
+                        onClick = {
+                            musicViewModel?.forceRefreshData()
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新数据")
+                    }
+                }
+            }
+        ) { innerPadding ->
+            // 主要内容
             when (currentDestination) {
                 AppDestinations.MUSIC_LIST -> MusicListFragment(
-                    modifier = Modifier.padding(innerPadding)
+                    modifier = Modifier.padding(innerPadding),
+                    musicViewModel = musicViewModel
                 )
                 AppDestinations.TOOLS_LIST -> ToolsListFragment(
                     modifier = Modifier.padding(innerPadding)
