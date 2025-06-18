@@ -11,6 +11,9 @@ import androidx.lifecycle.viewModelScope
 import com.sevengod.maibud.data.model.Song
 import com.sevengod.maibud.utils.DSUtils
 import com.sevengod.maibud.utils.SongUtil
+import com.sevengod.maibud.data.entities.RecordEntity
+import com.sevengod.maibud.data.model.Record
+import com.sevengod.maibud.utils.DBUtils
 import kotlinx.coroutines.launch
 
 // 定义数据初始化状态
@@ -32,7 +35,10 @@ class MusicViewModel(
     
     var localSongData by mutableStateOf<List<Song>?>(null)
         private set
-    
+
+    var localRecordData by mutableStateOf<List<Record>?>(null)
+        private set
+
     init {
         // ViewModel创建时自动初始化数据
         initializeData()
@@ -52,9 +58,12 @@ class MusicViewModel(
 
                 // 初始化歌曲数据
                 SongUtil.getSongData(context)
-                
+                SongUtil.getPlayerRecordData(context)
+
                 // 加载本地歌曲数据到内存中
                 loadLocalSongData()
+                loadLocalRecordData()
+
                 
                 dataInitState = DataInitState.Success
                 Log.d(TAG, "应用数据初始化完成")
@@ -131,6 +140,58 @@ class MusicViewModel(
      */
     fun goInitState() {
         dataInitState = DataInitState.Idle
+    }
+
+    private suspend fun loadLocalRecordData() {
+        try {
+            localRecordData = SongUtil.getLocalPlayerRecordData(context)?.records
+            Log.d(TAG, "本地游玩记录数据加载完成: ${localSongData?.size ?: 0} 首")
+        } catch (e: Exception) {
+            Log.e(TAG, "加载本地游玩记录数据失败", e)
+        }
+    }
+
+    /**
+     * 同步本地数据到数据库
+     */
+    fun syncDataToDatabase() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "开始同步数据到数据库...")
+                val success = DBUtils.syncLocalDataToDatabase(context)
+                if (success) {
+                    Log.d(TAG, "数据同步成功")
+                } else {
+                    Log.e(TAG, "数据同步失败")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "同步数据时发生错误", e)
+            }
+        }
+    }
+
+    /**
+     * 获取数据库中的记录数量
+     */
+    suspend fun getDatabaseRecordCount(): Int {
+        return try {
+            DBUtils.getRecordCount(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "获取数据库记录数量失败", e)
+            0
+        }
+    }
+
+    /**
+     * 根据歌曲ID获取记录
+     */
+    suspend fun getRecordsBySongId(songId: Int): List<RecordEntity> {
+        return try {
+            DBUtils.getRecordsBySongId(context, songId)
+        } catch (e: Exception) {
+            Log.e(TAG, "获取歌曲记录失败", e)
+            emptyList()
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.sevengod.maibud.interceptors
 
+import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
@@ -15,11 +16,13 @@ class JwtTokenInterceptor(
     private val tokenProvider: () -> String?,
     private val urlList: List<String>
 ) : Interceptor {
-
+    val TAG = "JwtTokenInterceptor"
     @Throws(IOException::class)
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         val requestUrl = originalRequest.url.toString()
+
+        Log.d(TAG, "=== 拦截器被调用 ===")
 
         // 检查当前请求URL是否在需要验证的列表中
         val shouldAddToken = urlList.any { url ->
@@ -31,8 +34,9 @@ class JwtTokenInterceptor(
             if (!token.isNullOrEmpty()) {
                 // 构建带Token的新请求
                 val newRequest = originalRequest.newBuilder()
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Cookie", token)
                     .build()
+                Log.d(TAG,newRequest.headers.toString())
                 chain.proceed(newRequest)
             } else {
                 // Token为空，继续原始请求

@@ -1,5 +1,6 @@
 package com.sevengod.maibud.ui.fragments
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -21,13 +22,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.sevengod.maibud.data.model.BasicInfo
 import com.sevengod.maibud.data.model.Chart
 import com.sevengod.maibud.data.model.Song
+import com.sevengod.maibud.data.model.Record
+import com.sevengod.maibud.data.entities.RecordEntity
 import com.sevengod.maibud.data.viewmodels.DataInitState
 import com.sevengod.maibud.data.viewmodels.MusicViewModel
 import com.sevengod.maibud.ui.theme.MaiBudTheme
@@ -46,14 +49,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.viewinterop.AndroidView
+import com.bumptech.glide.Glide
+import com.sevengod.maibud.R
 
 // 添加难度enum定义
 enum class Difficulty(val index: Int, val displayName: String, val color: Color) {
-    BASIC(0, "BASIC", Color(0xFF34D399)),      // #34d399 绿色
-    ADVANCED(1, "ADVANCED", Color(0xFFFBBF24)), // #fbbf24 黄色
-    EXPERT(2, "EXPERT", Color(0xFFEF4444)),     // #ef4444 红色
-    MASTER(3, "MASTER", Color(0xFF8B5CF6)),     // #8b5cf6 紫色
-    REMASTER(4, "REMASTER", Color(0xFFBC6DE0))  // #ec4899 粉色
+    BASIC(0, "Basic", Color(0xFF34D399)),      // #34d399 绿色
+    ADVANCED(1, "Advanced", Color(0xFFFBBF24)), // #fbbf24 黄色
+    EXPERT(2, "Expert", Color(0xFFEF4444)),     // #ef4444 红色
+    MASTER(3, "Master", Color(0xFF8B5CF6)),     // #8b5cf6 紫色
+    REMASTER(4, "Re:MASTER", Color(0xFFBC6DE0))  // #ec4899 粉色
 }
 
 @Composable
@@ -81,7 +87,10 @@ fun MusicListFragment(
 
             is DataInitState.Success -> {
                 val songList = musicViewModel.getSongData() ?: emptyList()
-                SuccessContent(songList = songList)
+                SuccessContent(
+                    songList = songList,
+                    musicViewModel = musicViewModel
+                )
             }
 
             is DataInitState.Error -> {
@@ -126,6 +135,7 @@ private fun LoadingContent(
 @Composable
 private fun SuccessContent(
     songList: List<Song>,
+    musicViewModel: MusicViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -151,7 +161,8 @@ private fun SuccessContent(
                         currentDifficulty = currentDifficulty,
                         onDifficultyChange = { newDifficulty ->
                             currentDifficulty = newDifficulty
-                        }
+                        },
+                        musicViewModel = musicViewModel
                     )
                 }
             }
@@ -230,90 +241,104 @@ private fun SongCard(
     song: Song,
     currentDifficulty: Difficulty = Difficulty.EXPERT,
     onDifficultyChange: (Difficulty) -> Unit = {},
+    musicViewModel: MusicViewModel? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(all=16.dp)
+    // 创建 Pager 状态
+    val pagerState = rememberPagerState(
+        initialPage = currentDifficulty.index,
+        pageCount = { song.level.size }
+    )
+    
+    // 监听页面变化并更新难度
+    LaunchedEffect(pagerState.currentPage) {
+        val newDifficulty = Difficulty.values().getOrNull(pagerState.currentPage)
+        if (newDifficulty != null && newDifficulty != currentDifficulty) {
+            onDifficultyChange(newDifficulty)
+        }
+    }
+    
+    // 当外部难度变化时更新pager
+    LaunchedEffect(currentDifficulty) {
+        if (pagerState.currentPage != currentDifficulty.index) {
+            pagerState.animateScrollToPage(currentDifficulty.index)
+        }
+    }
+
+    // 整个Card作为Pager的内容
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier.fillMaxWidth()
+    ) { page ->
+        val currentPageDifficulty = Difficulty.values().getOrNull(page) ?: Difficulty.EXPERT
+        
+        // 获取当前页面对应的记录
+        var currentRecord by remember(song.id, page) { 
+            mutableStateOf<Record?>(null) 
+        }
+        
+        // 监听页面变化，获取对应记录
+        LaunchedEffect(song.id, page) {
+            currentRecord = musicViewModel?.localRecordData?.find { record ->
+                record.songId == song.id && record.levelIndex == page
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            //第一层,难度选择方框
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(all=16.dp)
             ) {
-                repeat(song.level.size) { index ->
-                    val difficulty = Difficulty.values().getOrNull(index)
-                    if (difficulty != null) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    color = if (currentDifficulty.index == index) 
-                                        difficulty.color.copy(alpha = 0.7f) 
-                                    else Color.White,
-                                    shape = RoundedCornerShape(4.dp)
+                //第一层,难度选择方框 - 显示当前页面的难度
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(song.level.size) { index ->
+                        val difficulty = Difficulty.values().getOrNull(index)
+                        if (difficulty != null) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        color = if (page == index) 
+                                            difficulty.color.copy(alpha = 0.7f) 
+                                        else Color.White,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .border(
+                                        width = if (page == index) 2.dp else 1.dp,
+                                        color = if (page == index) 
+                                            difficulty.color 
+                                        else Color.Gray,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .clickable { 
+                                        onDifficultyChange(difficulty)
+                                    }
+                            ){
+                                Text(
+                                    text=song.level[index],
+                                    color = if (page == index) Color.White else Color.Black,
+                                    fontWeight = FontWeight.Bold
                                 )
-                                .border(
-                                    width = if (currentDifficulty.index == index) 2.dp else 1.dp,
-                                    color = if (currentDifficulty.index == index) 
-                                        difficulty.color 
-                                    else Color.Gray,
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .clickable { 
-                                    onDifficultyChange(difficulty)
-                                }
-                        ){
-                            Text(
-                                text=song.level[index],
-                                color = if (currentDifficulty.index == index) Color.White else Color.Black,
-                                fontWeight = FontWeight.Bold
-                            )
+                            }
                         }
                     }
                 }
-            }
 
-            //第二层,歌曲图片+谱师+曲师 - 添加滑动支持
-            val pagerState = rememberPagerState(
-                initialPage = currentDifficulty.index,
-                pageCount = { song.level.size }
-            )
-            
-            // 监听页面变化并更新难度
-            LaunchedEffect(pagerState.currentPage) {
-                val newDifficulty = Difficulty.values().getOrNull(pagerState.currentPage)
-                if (newDifficulty != null && newDifficulty != currentDifficulty) {
-                    onDifficultyChange(newDifficulty)
-                }
-            }
-            
-            // 当外部难度变化时更新pager
-            LaunchedEffect(currentDifficulty) {
-                if (pagerState.currentPage != currentDifficulty.index) {
-                    pagerState.animateScrollToPage(currentDifficulty.index)
-                }
-            }
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp)
-            ) { page ->
-                val difficulty = Difficulty.values().getOrNull(page)
-                val charter = song.charts.getOrNull(page)?.charter ?: "无"
-                
+                //第二层,歌曲图片+谱师+曲师 - 显示当前页面的信息
                 Row(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -323,7 +348,10 @@ private fun SongCard(
                                 shape = RoundedCornerShape(8.dp)
                             )
                     ) {
-                        //For Glide
+                        MusicCoverImage(
+                            "https://www.diving-fish.com/covers/${calculateRealId(song.id)}.png",
+                            modifier = Modifier.size(96.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(
@@ -350,7 +378,7 @@ private fun SongCard(
                         )
 
                         Text(
-                            text = "谱师:$charter",
+                            text = "谱师:${song.charts.getOrNull(page)?.charter ?: "无"}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White,
                             maxLines = 1,
@@ -359,104 +387,207 @@ private fun SongCard(
                         )
                     }
                 }
-            }
-            
-            //第三层,完成率显示和FC/AP状态按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 左侧：完成率显示
-                Text(
-                    text = "100.XXXX%", // 这里显示具体的完成率，如："95.67%"
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                )
-
-                // 中间：判定等级图片展示框（SSS/SS/S/A/B/C等）
-                Box(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(60.dp)
-                        .background(
-                            color = Color.White,
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = Color.Gray,
-                            shape = RoundedCornerShape(4.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // 这里可以放置判定等级的drawable图片
-                    // Image(
-                    //     painter = painterResource(id = R.drawable.rank_sss),
-                    //     contentDescription = "Rank SSS",
-                    //     modifier = Modifier.fillMaxSize()
-                    // )
-
-                    // 临时显示文字，实际使用时替换为图片
-                    Text(
-                        text = "SSS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
-                    )
-                }
-
-                // 右侧：FC和AP状态图片展示框
+                
+                //第三层,完成率显示和FC/FS状态按钮 - 显示当前页面的记录
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // FC状态图片展示框
+                    // 左侧：完成率显示 - 占用33%
                     Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = Color.White,
-                                shape = CircleShape
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = Color.Gray,
-                                shape = CircleShape
-                            )
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        // 这里可以放置FC状态的drawable图片
-                        // Image(
-                        //     painter = painterResource(id = R.drawable.fc_icon),
-                        //     contentDescription = "FC Status",
-                        //     modifier = Modifier.fillMaxSize()
-                        // )
+                        Text(
+                            text = currentRecord?.let { 
+                                String.format("%.4f%%", it.achievements)
+                            } ?: "未游玩",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Black,
+                            //这块后续可以根据完成率来改变颜色
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    // AP状态图片展示框
+                    // 中间：判定等级图片展示框（SSS/SS/S/A/B/C等） - 占用33%
                     Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = Color.White,
-                                shape = CircleShape
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = Color.Gray,
-                                shape = CircleShape
-                            )
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // 这里可以放置AP状态的drawable图片
-                        // Image(
-                        //     painter = painterResource(id = R.drawable.ap_icon),
-                        //     contentDescription = "AP Status",
-                        //     modifier = Modifier.fillMaxSize()
-                        // )
+                        Box(
+                            modifier = Modifier
+                                .height(32.dp)
+                                .width(60.dp)
+                                .background(
+                                    color = Color.Transparent,
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.Transparent,
+                                    shape = RoundedCornerShape(4.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            currentRecord?.let { record ->
+                                // 使用RecordEntity的getRateIcon方法
+                                val recordEntity = RecordEntity(
+                                    achievements = record.achievements,
+                                    ds = record.ds,
+                                    dxScore = record.dxScore,
+                                    fc = record.fc,
+                                    fs = record.fs,
+                                    level = record.level,
+                                    levelIndex = record.levelIndex,
+                                    levelLabel = record.levelLabel,
+                                    ra = record.ra,
+                                    rate = record.rate,
+                                    songId = record.songId,
+                                    title = record.title,
+                                    type = record.type
+                                )
+                                
+                                Image(
+                                    painter = painterResource(id = recordEntity.getRateIcon()),
+                                    contentDescription = "评级: ${record.rate}",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } ?: run {
+                                // 未游玩时显示占位图
+                                Image(
+                                    painter = painterResource(id = R.drawable.d),
+                                    contentDescription = "未游玩",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+
+                    // 右侧：FC和FS状态图片展示框 - 占用33%
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // FC状态图片展示框
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        color = Color.Transparent,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                currentRecord?.let { record ->
+                                    val recordEntity = RecordEntity(
+                                        achievements = record.achievements,
+                                        ds = record.ds,
+                                        dxScore = record.dxScore,
+                                        fc = record.fc,
+                                        fs = record.fs,
+                                        level = record.level,
+                                        levelIndex = record.levelIndex,
+                                        levelLabel = record.levelLabel,
+                                        ra = record.ra,
+                                        rate = record.rate,
+                                        songId = record.songId,
+                                        title = record.title,
+                                        type = record.type
+                                    )
+                                    
+                                    Image(
+                                        painter = painterResource(id = recordEntity.getFcIcon()),
+                                        contentDescription = "FC状态: ${record.fc}",
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                } ?: run {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.blank),
+                                        contentDescription = "未游玩",
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                            }
+
+                            // FS状态图片展示框
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        color = Color.Transparent,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                currentRecord?.let { record ->
+                                    val recordEntity = RecordEntity(
+                                        achievements = record.achievements,
+                                        ds = record.ds,
+                                        dxScore = record.dxScore,
+                                        fc = record.fc,
+                                        fs = record.fs,
+                                        level = record.level,
+                                        levelIndex = record.levelIndex,
+                                        levelLabel = record.levelLabel,
+                                        ra = record.ra,
+                                        rate = record.rate,
+                                        songId = record.songId,
+                                        title = record.title,
+                                        type = record.type
+                                    )
+                                    
+                                    Image(
+                                        painter = painterResource(id = recordEntity.getFsIcon()),
+                                        contentDescription = "FS状态: ${record.fs}",
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                } ?: run {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.blank),
+                                        contentDescription = "未游玩",
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+fun calculateRealId(id: Int): String {
+    return if (id < 10000) {
+        String.format("%05d", id)  // 补足5位，不足补0
+    } else {
+        id.toString()  // 直接转换为字符串，而不是强制类型转换
+    }
+}
+
+@Composable
+fun MusicCoverImage(
+    imageUrl: String,
+    modifier: Modifier = Modifier
+) {
+    AndroidView(
+        factory = { context ->
+            android.widget.ImageView(context).apply {
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                Glide.with(context)
+                    .load(imageUrl)
+                    .placeholder(android.R.drawable.ic_menu_gallery) // 加载中占位图
+                    .error(android.R.drawable.ic_menu_close_clear_cancel) // 错误占位图
+                    .into(this)
+            }
+        },
+        modifier = modifier
+    )
 }
 
 @Preview(showBackground = true)

@@ -25,7 +25,7 @@ object SongDataRepository {
         }
     }
 
-    suspend fun getPlayerRecord(): Result<List<PlayerRecord>> {
+    suspend fun getPlayerRecord(): Result<PlayerRecord> {
         return try {
             val response = client.create(SongDataService::class.java).getPlayerRecord()
             if (response.isSuccessful) {

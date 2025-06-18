@@ -136,12 +136,21 @@ object SongUtil {
 
     private suspend fun getActualPlayerRecordLogic(context: Context) {
         Log.d(TAG, "开始获取玩家记录数据...")
-        val result: Result<List<PlayerRecord>> = SongDataRepository.getPlayerRecord()
+        val result: Result<PlayerRecord> = SongDataRepository.getPlayerRecord()
         result.onSuccess { playerRecords ->
-            Log.d(TAG, "成功获取 ${playerRecords.size} 条玩家记录")
+            Log.d(TAG, "成功获取 ${playerRecords.records.size} 条玩家记录")
             val json = gson.toJson(playerRecords)
             DSUtils.storeData(context, PLAYER_RECORD_DATA, json)
             Log.d(TAG, "玩家记录数据已保存到本地")
+            
+            // 自动保存到数据库
+            try {
+                DBUtils.savePlayerRecordToDB(context, playerRecords)
+                Log.d(TAG, "玩家记录数据已保存到数据库")
+            } catch (e: Exception) {
+                Log.e(TAG, "保存玩家记录到数据库失败", e)
+                // 不抛出异常，因为本地存储已经成功
+            }
         }.onFailure { e ->
             Log.e(TAG, "拉取玩家记录失败: ${e.message}", e)
         }
@@ -150,12 +159,12 @@ object SongUtil {
     /**
      * 从本地存储获取玩家记录数据
      */
-    suspend fun getLocalPlayerRecordData(context: Context): List<PlayerRecord>? {
+    suspend fun getLocalPlayerRecordData(context: Context): PlayerRecord? {
         return try {
             val jsonData = DSUtils.getData(context, PLAYER_RECORD_DATA)
             if (jsonData != null) {
-                val playerRecords = gson.fromJson(jsonData, Array<PlayerRecord>::class.java).toList()
-                Log.d(TAG, "从本地加载了 ${playerRecords.size} 条玩家记录")
+                val playerRecords = gson.fromJson(jsonData, PlayerRecord::class.java)
+                Log.d(TAG, "从本地加载了 ${playerRecords.records.size} 条玩家记录")
                 playerRecords
             } else {
                 Log.w(TAG, "本地没有玩家记录数据")

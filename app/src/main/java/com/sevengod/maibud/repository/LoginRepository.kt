@@ -1,5 +1,6 @@
 package com.sevengod.maibud.repository
 
+import android.util.Log
 import com.sevengod.maibud.data.model.LoginRequest
 import com.sevengod.maibud.data.model.LoginResponse
 import com.sevengod.maibud.instances.RetrofitInstance
@@ -10,6 +11,7 @@ import okhttp3.Dispatcher
 import retrofit2.Response
 
 object LoginRepository {
+    val TAG = "LoginRepo"
     val client = RetrofitInstance.instance;
     suspend fun getLoginToken(username: String, password: String): Result<LoginResponse> {
         return withContext(Dispatchers.IO) {
@@ -22,6 +24,8 @@ object LoginRepository {
                 if (response.isSuccessful) {
                     val headers = response.headers()
                     val token = headers["set-cookie"]
+
+                    Log.i(TAG,token.toString())
 
                     val responseBody = response.body()
                     val message = responseBody?.message
