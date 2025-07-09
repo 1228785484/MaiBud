@@ -57,14 +57,14 @@ class MainActivity : ComponentActivity() {
                 val musicViewModel: MusicViewModel = viewModel(
                     factory = MusicViewModelFactory(this@MainActivity)
                 )
-                
+
                 val loginViewModel: LoginViewModel = viewModel(
                     factory = LoginViewModelFactory(
                         LoginRepository,
                         this@MainActivity
                     )
                 )
-                
+
                 MaiBudApp(
                     musicViewModel = musicViewModel,
                     loginViewModel = loginViewModel
@@ -88,7 +88,7 @@ fun MaiBudApp(
     LaunchedEffect(loginViewModel) {
         loginViewModel?.loadCurrentUserFromStorage()
     }
-    
+
     // 登录Activity启动器
     val loginLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -108,6 +108,7 @@ fun MaiBudApp(
                         duration = SnackbarDuration.Short
                     )
                 }
+
                 is DataInitState.Error -> {
                     snackbarHostState.showSnackbar(
                         message = "数据初始化失败: ${state.message}",
@@ -115,7 +116,9 @@ fun MaiBudApp(
                     )
                     viewModel.goInitState()
                 }
-                else -> { /* 不处理其他状态 */ }
+
+                else -> { /* 不处理其他状态 */
+                }
             }
         }
     }
@@ -159,16 +162,19 @@ fun MaiBudApp(
                     modifier = Modifier.padding(innerPadding),
                     musicViewModel = musicViewModel
                 )
+
                 AppDestinations.TOOLS_LIST -> ToolsListFragment(
                     modifier = Modifier.padding(innerPadding)
                 )
+
                 AppDestinations.PROFILE -> ProfileFragment(
                     modifier = Modifier.padding(innerPadding),
                     loginViewModel = loginViewModel,
                     onLoginRequest = {
                         val intent = Intent(context, LoginActivity::class.java)
                         loginLauncher.launch(intent)
-                    }
+                    },
+                    musicViewModel = musicViewModel
                 )
             }
         }

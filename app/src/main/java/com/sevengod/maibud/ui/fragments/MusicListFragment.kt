@@ -1,5 +1,14 @@
 package com.sevengod.maibud.ui.fragments
 
+import android.widget.ImageView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,66 +53,125 @@ import com.sevengod.maibud.ui.theme.MaiBudTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.Slider
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.TextStyle
 import com.bumptech.glide.Glide
 import com.sevengod.maibud.R
+import com.sevengod.maibud.data.model.Difficulty
+import kotlinx.coroutines.launch
+import java.text.DecimalFormat
+import kotlin.text.format
 
 // 添加难度enum定义
-enum class Difficulty(val index: Int, val displayName: String, val color: Color) {
-    BASIC(0, "Basic", Color(0xFF34D399)),      // #34d399 绿色
-    ADVANCED(1, "Advanced", Color(0xFFFBBF24)), // #fbbf24 黄色
-    EXPERT(2, "Expert", Color(0xFFEF4444)),     // #ef4444 红色
-    MASTER(3, "Master", Color(0xFF8B5CF6)),     // #8b5cf6 紫色
-    REMASTER(4, "Re:MASTER", Color(0xFFBC6DE0))  // #ec4899 粉色
-}
+
 
 @Composable
 fun MusicListFragment(
     modifier: Modifier = Modifier,
     musicViewModel: MusicViewModel? = null
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    var isMenuVisible by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier.fillMaxSize()
     ) {
-        Text(
-            text = "乐曲列表",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // 根据数据初始化状态显示不同内容
-        when (val initState = musicViewModel?.dataInitState) {
-            is DataInitState.Loading -> {
-                LoadingContent()
-            }
-
-            is DataInitState.Success -> {
-                val songList = musicViewModel.getSongData() ?: emptyList()
-                SuccessContent(
-                    songList = songList,
-                    musicViewModel = musicViewModel
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // 标题栏
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "乐曲列表",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
                 )
+
+                IconButton(
+                    onClick = {
+                        isMenuVisible = !isMenuVisible
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "搜索"
+                    )
+                }
             }
 
-            is DataInitState.Error -> {
-                ErrorContent(
-                    errorMessage = initState.message,
-                    onRetry = { musicViewModel?.initializeData() }
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
-            is DataInitState.Idle, null -> {
-                // 如果状态是Idle或ViewModel为null，显示初始化提示
-                IdleContent()
+            // 内容区域
+            when (val initState = musicViewModel?.dataInitState) {
+                is DataInitState.Loading -> {
+                    LoadingContent()
+                }
+
+                is DataInitState.Success -> {
+                    val songList = musicViewModel.getSongData() ?: emptyList()
+                    SuccessContent(
+                        songList = songList,
+                        musicViewModel = musicViewModel
+                    )
+                }
+
+                is DataInitState.Error -> {
+                    ErrorContent(
+                        errorMessage = initState.message,
+                        onRetry = { musicViewModel?.initializeData() }
+                    )
+                }
+
+                is DataInitState.Idle, null -> {
+                    IdleContent()
+                }
             }
+        }
+
+        // 浮动菜单 - 独立于主内容布局
+        AnimatedVisibility(
+            visible = isMenuVisible,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+            enter = slideInVertically(
+                initialOffsetY = { -it },
+                animationSpec = tween(300, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(300)),
+            exit = slideOutVertically(
+                targetOffsetY = { -it },
+                animationSpec = tween(250, easing = FastOutLinearInEasing)
+            ) + fadeOut(animationSpec = tween(250))
+        ) {
+            FilterMenu(
+                musicViewModel = musicViewModel,
+                onSearchRequest = {
+                    isMenuVisible = false
+                },
+            )
         }
     }
 }
@@ -113,8 +181,7 @@ private fun LoadingContent(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
@@ -134,9 +201,8 @@ private fun LoadingContent(
 
 @Composable
 private fun SuccessContent(
-    songList: List<Song>,
-    musicViewModel: MusicViewModel? = null,
-    modifier: Modifier = Modifier
+    //歌曲列表只需要管理songList即可
+    songList: List<Song>, musicViewModel: MusicViewModel? = null, modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         // 显示歌曲数量信息
@@ -154,8 +220,8 @@ private fun SuccessContent(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(songList) { song ->
-                    var currentDifficulty by remember { mutableStateOf(Difficulty.EXPERT) }
+                items(songListWithoutYan(songList.reversed())) { song ->
+                    var currentDifficulty by remember { mutableStateOf(Difficulty.MASTER) }
                     SongCard(
                         song = song,
                         currentDifficulty = currentDifficulty,
@@ -172,13 +238,10 @@ private fun SuccessContent(
 
 @Composable
 private fun ErrorContent(
-    errorMessage: String,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    errorMessage: String, onRetry: () -> Unit, modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
@@ -209,13 +272,10 @@ private fun IdleContent(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "正在初始化...",
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color.Gray
+            text = "正在初始化...", style = MaterialTheme.typography.bodyLarge, color = Color.Gray
         )
     }
 }
@@ -225,13 +285,10 @@ private fun EmptyContent(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "暂无歌曲数据",
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color.Gray
+            text = "暂无歌曲数据", style = MaterialTheme.typography.bodyLarge, color = Color.Gray
         )
     }
 }
@@ -246,10 +303,11 @@ private fun SongCard(
 ) {
     // 创建 Pager 状态
     val pagerState = rememberPagerState(
-        initialPage = currentDifficulty.index,
-        pageCount = { song.level.size }
-    )
-    
+        initialPage = currentDifficulty.index, pageCount = { song.level.size })
+
+    val nestedScrollConnection = remember { object : NestedScrollConnection {} }
+
+
     // 监听页面变化并更新难度
     LaunchedEffect(pagerState.currentPage) {
         val newDifficulty = Difficulty.values().getOrNull(pagerState.currentPage)
@@ -257,26 +315,42 @@ private fun SongCard(
             onDifficultyChange(newDifficulty)
         }
     }
-    
+
     // 当外部难度变化时更新pager
-    LaunchedEffect(currentDifficulty) {
-        if (pagerState.currentPage != currentDifficulty.index) {
-            pagerState.animateScrollToPage(currentDifficulty.index)
+    with(pagerState) {
+        val coroutineScope = rememberCoroutineScope()
+        LaunchedEffect(currentDifficulty) {
+            coroutineScope.launch {
+                if (currentPage != currentDifficulty.index) {
+                    animateScrollToPage(
+                        page = currentDifficulty.index, animationSpec = tween(
+                            durationMillis = 500, easing = FastOutSlowInEasing
+                        )
+                    )
+                }
+            }
         }
     }
+
+//    LaunchedEffect(currentDifficulty) {
+//        if (pagerState.currentPage != currentDifficulty.index) {
+//            pagerState.animateScrollToPage(currentDifficulty.index)
+//        }
+//    }
 
     // 整个Card作为Pager的内容
     HorizontalPager(
         state = pagerState,
         modifier = modifier.fillMaxWidth()
+            .nestedScroll(nestedScrollConnection)
     ) { page ->
         val currentPageDifficulty = Difficulty.values().getOrNull(page) ?: Difficulty.EXPERT
-        
+
         // 获取当前页面对应的记录
-        var currentRecord by remember(song.id, page) { 
-            mutableStateOf<Record?>(null) 
+        var currentRecord by remember(song.id, page) {
+            mutableStateOf<Record?>(null)
         }
-        
+
         // 监听页面变化，获取对应记录
         LaunchedEffect(song.id, page) {
             currentRecord = musicViewModel?.localRecordData?.find { record ->
@@ -291,7 +365,7 @@ private fun SongCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(all=16.dp)
+                    .padding(all = 16.dp)
             ) {
                 //第一层,难度选择方框 - 显示当前页面的难度
                 Row(
@@ -308,24 +382,20 @@ private fun SongCard(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .background(
-                                        color = if (page == index) 
-                                            difficulty.color.copy(alpha = 0.7f) 
-                                        else Color.White,
-                                        shape = RoundedCornerShape(4.dp)
+                                        color = if (page == index) difficulty.color.copy(alpha = 0.7f)
+                                        else Color.White, shape = RoundedCornerShape(4.dp)
                                     )
                                     .border(
                                         width = if (page == index) 2.dp else 1.dp,
-                                        color = if (page == index) 
-                                            difficulty.color 
+                                        color = if (page == index) difficulty.color
                                         else Color.Gray,
                                         shape = RoundedCornerShape(4.dp)
                                     )
-                                    .clickable { 
+                                    .clickable {
                                         onDifficultyChange(difficulty)
-                                    }
-                            ){
+                                    }) {
                                 Text(
-                                    text=song.level[index],
+                                    text = song.ds[index].toString(),
                                     color = if (page == index) Color.White else Color.Black,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -348,10 +418,12 @@ private fun SongCard(
                                 shape = RoundedCornerShape(8.dp)
                             )
                     ) {
-                        MusicCoverImage(
-                            "https://www.diving-fish.com/covers/${calculateRealId(song.id)}.png",
-                            modifier = Modifier.size(96.dp)
-                        )
+                        key(song.id) {
+                            MusicCoverImage(
+                                "https://www.diving-fish.com/covers/${calculateRealId(song.id)}.png",
+                                modifier = Modifier.size(96.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(
@@ -387,7 +459,7 @@ private fun SongCard(
                         )
                     }
                 }
-                
+
                 //第三层,完成率显示和FC/FS状态按钮 - 显示当前页面的记录
                 Row(
                     modifier = Modifier
@@ -397,39 +469,51 @@ private fun SongCard(
                 ) {
                     // 左侧：完成率显示 - 占用33%
                     Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart
+                        modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            text = currentRecord?.let { 
-                                String.format("%.4f%%", it.achievements)
-                            } ?: "未游玩",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Black,
-                            //这块后续可以根据完成率来改变颜色
-                            fontWeight = FontWeight.Bold
-                        )
+                        val achievementText = currentRecord?.let {
+                            String.format("%.4f%%", it.achievements)
+                        } ?: "未游玩"
+
+                        // 100+分数显示彩虹色
+                        if (currentRecord != null && currentRecord?.achievements!! >= 100.0) {
+                            RainbowText(
+                                text = achievementText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = achievementText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = currentRecord?.let { record ->
+                                    when {
+                                        record.achievements >= 99.0 -> Color(0xFFFFD700) // 金色
+                                        record.achievements >= 97.0 -> Color(0xFFC0C0C0) // 银色
+                                        else -> Color.Black
+                                    }
+                                } ?: Color.Gray,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     // 中间：判定等级图片展示框（SSS/SS/S/A/B/C等） - 占用33%
                     Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.weight(1f), contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
                                 .height(32.dp)
                                 .width(60.dp)
                                 .background(
-                                    color = Color.Transparent,
-                                    shape = RoundedCornerShape(4.dp)
+                                    color = Color.Transparent, shape = RoundedCornerShape(4.dp)
                                 )
                                 .border(
                                     width = 1.dp,
                                     color = Color.Transparent,
                                     shape = RoundedCornerShape(4.dp)
-                                ),
-                            contentAlignment = Alignment.Center
+                                ), contentAlignment = Alignment.Center
                         ) {
                             currentRecord?.let { record ->
                                 // 使用RecordEntity的getRateIcon方法
@@ -448,7 +532,7 @@ private fun SongCard(
                                     title = record.title,
                                     type = record.type
                                 )
-                                
+
                                 Image(
                                     painter = painterResource(id = recordEntity.getRateIcon()),
                                     contentDescription = "评级: ${record.rate}",
@@ -467,8 +551,7 @@ private fun SongCard(
 
                     // 右侧：FC和FS状态图片展示框 - 占用33%
                     Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.weight(1f), contentAlignment = Alignment.Center
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -478,10 +561,8 @@ private fun SongCard(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .background(
-                                        color = Color.Transparent,
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
+                                        color = Color.Transparent, shape = CircleShape
+                                    ), contentAlignment = Alignment.Center
                             ) {
                                 currentRecord?.let { record ->
                                     val recordEntity = RecordEntity(
@@ -499,7 +580,7 @@ private fun SongCard(
                                         title = record.title,
                                         type = record.type
                                     )
-                                    
+
                                     Image(
                                         painter = painterResource(id = recordEntity.getFcIcon()),
                                         contentDescription = "FC状态: ${record.fc}",
@@ -519,10 +600,8 @@ private fun SongCard(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .background(
-                                        color = Color.Transparent,
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
+                                        color = Color.Transparent, shape = CircleShape
+                                    ), contentAlignment = Alignment.Center
                             ) {
                                 currentRecord?.let { record ->
                                     val recordEntity = RecordEntity(
@@ -540,7 +619,7 @@ private fun SongCard(
                                         title = record.title,
                                         type = record.type
                                     )
-                                    
+
                                     Image(
                                         painter = painterResource(id = recordEntity.getFsIcon()),
                                         contentDescription = "FS状态: ${record.fs}",
@@ -572,23 +651,177 @@ fun calculateRealId(id: Int): String {
 
 @Composable
 fun MusicCoverImage(
-    imageUrl: String,
-    modifier: Modifier = Modifier
+    imageUrl: String, modifier: Modifier = Modifier
 ) {
     AndroidView(
         factory = { context ->
-            android.widget.ImageView(context).apply {
-                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                Glide.with(context)
-                    .load(imageUrl)
+            ImageView(context).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                Glide.with(context).load(imageUrl)
                     .placeholder(android.R.drawable.ic_menu_gallery) // 加载中占位图
                     .error(android.R.drawable.ic_menu_close_clear_cancel) // 错误占位图
                     .into(this)
             }
-        },
+        }, modifier = modifier
+    )
+}
+
+//歌曲列表但是没宴会谱
+fun songListWithoutYan(songList: List<Song>): List<Song> {
+    return songList.filter { song ->
+        song.basicInfo.genre != "宴会場"
+    }
+}
+
+//筛选菜单
+@Composable
+private fun FilterMenu(
+    musicViewModel: MusicViewModel?,
+    onSearchRequest: () -> Unit
+) {
+    // State for min and max DS input fields
+    // Initialize with default values
+    var minDsSliderValue by remember { mutableFloatStateOf(1.0f) }
+    var maxDsSliderValue by remember { mutableFloatStateOf(15.0f) }
+
+    var searchText by remember { mutableStateOf("") }
+    val dsValueRange = 1.0f..15.0f
+
+    val steps =
+        ((dsValueRange.endInclusive - dsValueRange.start) / 0.1f).toInt() - 1 // Calculate steps for 0.1 increments
+
+    // DecimalFormat for displaying slider values with one decimal place
+    val decimalFormat = remember { DecimalFormat("0.0") }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Gray)
+            .padding(4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "乐曲名称")
+            }
+            //Todo 添加实际歌曲筛选逻辑
+            TextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("搜索歌曲") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "定数范围")
+            }
+            Text(
+                text = "最低定数: ${decimalFormat.format(minDsSliderValue)}",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Slider(
+                value = minDsSliderValue,
+                onValueChange = { newValue ->
+                    minDsSliderValue = newValue
+                    // Ensure minDs is not greater than maxDs
+                    if (minDsSliderValue > maxDsSliderValue) {
+                        maxDsSliderValue = minDsSliderValue
+                    }
+                },
+                valueRange = dsValueRange,
+                steps = steps,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // --- 最高定数筛选 ---
+            Text(
+                text = "最高定数: ${decimalFormat.format(maxDsSliderValue)}",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Slider(
+                value = maxDsSliderValue,
+                onValueChange = { newValue ->
+                    maxDsSliderValue = newValue
+                    // Ensure maxDs is not less than minDs
+                    if (maxDsSliderValue < minDsSliderValue) {
+                        minDsSliderValue = maxDsSliderValue
+                    }
+                },
+                valueRange = dsValueRange,
+                steps = steps,
+                modifier = Modifier.fillMaxWidth()
+            )
+            //暂时先不写
+//            Row(
+//                modifier = Modifier.fillMaxWidth(),
+//                horizontalArrangement = Arrangement.SpaceBetween
+//            ) {
+//                Text(text = "难度 ")
+//            }
+
+        }
+        Button(
+            onClick = {
+                // Convert Float to Double for the ViewModel
+                val finalMinDs = minDsSliderValue.toDouble()
+                val finalMaxDs = maxDsSliderValue.toDouble()
+
+                // Call ViewModel's search function
+                //Todo 添加名称筛选功能
+                musicViewModel?.searchSongs(
+                    name = searchText,
+                    minDs = finalMinDs,
+                    maxDs = finalMaxDs
+                )
+                onSearchRequest()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Text("确认")
+        }
+    }
+}
+
+@Composable
+fun RainbowText(
+    text: String,
+    style: TextStyle = TextStyle.Default,
+    fontWeight: FontWeight = FontWeight.Normal,
+    modifier: Modifier = Modifier
+) {
+    val rainbowColors = listOf(
+        Color(0xFFFF3366), // 亮红色
+        Color(0xFFFF9933), // 亮橙色  
+        Color(0xFFFFFF33), // 亮黄色
+        Color(0xFF33FF33), // 亮绿色
+        Color(0xFF3366FF), // 亮蓝色
+        Color(0xFFCC33FF)  // 亮紫色
+    )
+
+    Text(
+        text = text,
+        style = style.copy(
+            brush = Brush.linearGradient(
+                colors = rainbowColors
+            ),
+            fontWeight = fontWeight
+        ),
         modifier = modifier
     )
 }
+//以下为Preview
 
 @Preview(showBackground = true)
 @Composable
@@ -605,13 +838,9 @@ fun SongCardPreview() {
     // 创建一个 BasicInfo 样本数据，确保它不为 null
     // 并且其内部字段也有合理的默认值，以避免预览时因 null 导致的问题
     val sampleBasicInfo = BasicInfo(
-        artist = "示例艺术家",
-        title = "ABC",
-        genre = "D",
-        bpm = 120, // 根据你的实际类型
+        artist = "示例艺术家", title = "ABC", genre = "D", bpm = 120, // 根据你的实际类型
         releaseDate = "2023-01-01", // 根据你的实际类型
-        from = "示例来源",
-        isNew = false
+        from = "示例来源", isNew = false
     )
 
     // 创建一个 Song 对象的样本数据
@@ -622,8 +851,7 @@ fun SongCardPreview() {
         // ... Chart 类的其他字段
     )
     val sampleChart2 = Chart(
-        notes = listOf(200, 80, 30, 10, 1),
-        charter = "Charter B"
+        notes = listOf(200, 80, 30, 10, 1), charter = "Charter B"
         // ...
     )
 
@@ -643,3 +871,13 @@ fun SongCardPreview() {
         SongCard(song = sampleSong)
     }
 }
+
+//@Preview(showBackground = true, name = "FilterMenu Preview")
+//@Composable
+//fun FilterMenuPreview() {
+//    MaiBudTheme {
+//        FilterMenu()
+//    }
+//}
+
+

@@ -1,9 +1,19 @@
 package com.sevengod.maibud.repository
 
+import android.content.Context
+import androidx.lifecycle.LiveData
+import com.sevengod.maibud.data.entities.ChartEntity
+import com.sevengod.maibud.data.entities.SongEntity
+import com.sevengod.maibud.data.entities.SongWithChartsEntity
 import com.sevengod.maibud.data.model.PlayerRecord
 import com.sevengod.maibud.data.model.Song
+import com.sevengod.maibud.instances.DataBaseInstance
 import com.sevengod.maibud.instances.RetrofitInstance
 import com.sevengod.maibud.network.SongDataService
+import com.sevengod.maibud.utils.DBUtils
+import com.sevengod.maibud.utils.SongUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object SongDataRepository {
     private val client = RetrofitInstance.instance
@@ -42,4 +52,32 @@ object SongDataRepository {
             Result.failure(e)
         }
     }
+
+    //保存所有乐曲到数据库
+    suspend fun saveSongsToDatabase(
+        context: Context,
+        songs: List<Song>
+    ) {
+        return withContext(Dispatchers.IO) {
+            val pair = SongUtil.mapSongsToEntities(songs)
+            val DB = DBUtils.getDatabase(context)
+            DB.songDao().clearSongs()
+            DB.chartDao().clearCharts()
+            DB.songDao().insertAll(pair.first)
+            DB.chartDao().insertAll(pair.second)
+        }
+    }
+
+    suspend fun searchSongs(
+        context: Context,
+        minDs: Double? = null,
+        maxDs: Double? = null,
+        name: String? = null
+    ): List<SongWithChartsEntity> {
+        return withContext(Dispatchers.IO) {
+            val songWithChartsDao = DBUtils.getDatabase(context).songWithChartsDao()
+            songWithChartsDao.searchSongsWithCharts(name, minDs, maxDs)
+        }
+    }
 }
+

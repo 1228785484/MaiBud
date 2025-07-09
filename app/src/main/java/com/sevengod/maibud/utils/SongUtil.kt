@@ -2,8 +2,11 @@ package com.sevengod.maibud.utils
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.ui.input.key.type
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.gson.Gson
+import com.sevengod.maibud.data.dao.ChartDao
+import com.sevengod.maibud.data.dao.SongDao
 import com.sevengod.maibud.data.model.Song
 import com.sevengod.maibud.data.model.PlayerRecord
 import com.sevengod.maibud.repository.SongDataRepository
@@ -11,6 +14,12 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import com.sevengod.maibud.data.entities.SongEntity
+import com.sevengod.maibud.data.entities.ChartEntity
+import com.sevengod.maibud.data.entities.DifficultyType
+import com.sevengod.maibud.data.entities.SongWithChartsEntity
+import com.sevengod.maibud.data.model.BasicInfo
+import com.sevengod.maibud.data.model.Chart
 
 object SongUtil {
     const val LAST_SONG_UPDATE_DATE = "last_song_update_date"
@@ -56,6 +65,7 @@ object SongUtil {
             Log.d(TAG, "成功获取 ${songs.size} 首歌曲")
             val json = gson.toJson(songs)
             DSUtils.storeData(context, SONG_DATA, json)
+            SongDataRepository.saveSongsToDatabase(context,songs)
             Log.d(TAG, "歌曲数据已保存到本地")
         }.onFailure { e ->
             Log.e(TAG, "拉取失败: ${e.message}", e)
@@ -205,4 +215,182 @@ object SongUtil {
         clearLocalSongData(context)
         clearLocalPlayerRecordData(context)
     }
+
+    suspend fun mapSongsToEntities(songs: List<Song>): Pair<List<SongEntity>,List<ChartEntity>>{
+        val songEntities = mutableListOf<SongEntity>()
+        val chartEntities = mutableListOf<ChartEntity>()
+
+        // 难度映射关系，索引对应难度
+        val difficultyMapping = listOf(
+            DifficultyType.BASIC,
+            DifficultyType.ADVANCED,
+            DifficultyType.EXPERT,
+            DifficultyType.MASTER,
+            DifficultyType.REMASTER
+        )
+
+        songs.forEach { song ->
+            // 1. 映射 SongEntity
+            val songEntity = SongEntity(
+                id = song.id,
+                title = song.title,
+                artist = song.basicInfo.artist,
+                genre = song.basicInfo.genre,
+                bpm = song.basicInfo.bpm,
+                from = song.basicInfo.from,
+                type = song.type,
+                isNew = song.basicInfo.isNew,
+                // 根据标题判断是否为协谱
+                buddy = if (song.title.startsWith("[協]")) "協" else null
+            )
+            songEntities.add(songEntity)
+
+            // 2. 映射 ChartEntity
+            if (song.basicInfo.genre == "宴会場") {
+                // 特殊处理 "宴会場"
+                val utageDifficulty = if (song.charts.size >= 2) DifficultyType.UTAGE2P else DifficultyType.UTAGE
+                song.charts.forEachIndexed { index, chart ->
+                    val notes = chart.notes
+                    // 按照 tap, hold, slide, touch, break 顺序解析
+                    val notesTap = notes.getOrElse(0) { 0 }
+                    val notesHold = notes.getOrElse(1) { 0 }
+                    val notesSlide = notes.getOrElse(2) { 0 }
+                    val notesTouch = notes.getOrElse(3) { 0 }
+                    val notesBreak = notes.getOrElse(4) { 0 }
+
+                    val chartEntity = ChartEntity(
+                        songId = song.id,
+                        difficulty = utageDifficulty,
+                        type = song.type,
+                        ds = song.ds.getOrElse(index) { 0.0 },
+                        oldDs = null,
+                        level = song.level.getOrElse(index) { "" },
+                        charter = chart.charter,
+                        notesTap = notesTap,
+                        notesHold = notesHold,
+                        notesSlide = notesSlide,
+                        notesTouch = notesTouch,
+                        notesBreak = notesBreak,
+                        notesTotal = notes.sum()
+                    )
+                    chartEntities.add(chartEntity)
+                }
+            } else {
+                // 标准歌曲处理
+                song.charts.forEachIndexed { index, chart ->
+                    if (index < difficultyMapping.size) {
+                        val notes = chart.notes
+                        // 按照 tap, hold, slide, touch, break 顺序解析
+                        val notesTap = notes.getOrElse(0) { 0 }
+                        val notesHold = notes.getOrElse(1) { 0 }
+                        val notesSlide = notes.getOrElse(2) { 0 }
+                        val notesTouch = notes.getOrElse(3) { 0 }
+                        val notesBreak = notes.getOrElse(4) { 0 }
+
+                        val chartEntity = ChartEntity(
+                            songId = song.id,
+                            difficulty = difficultyMapping[index],
+                            type = song.type,
+                            ds = song.ds.getOrElse(index) { 0.0 },
+                            oldDs = null,
+                            level = song.level.getOrElse(index) { "" },
+                            charter = chart.charter,
+                            notesTap = notesTap,
+                            notesHold = notesHold,
+                            notesSlide = notesSlide,
+                            notesTouch = notesTouch,
+                            notesBreak = notesBreak,
+                            notesTotal = notes.sum()
+                        )
+                        chartEntities.add(chartEntity)
+                    }
+                }
+            }
+        }
+        return Pair(songEntities,chartEntities)
+    }
+    fun mapSongWithChartsEntitiesToSongs(songWithChartsEntities: List<SongWithChartsEntity>): List<Song> {
+        return songWithChartsEntities.map { songWithChartsEntity ->
+            mapSongWithChartsEntityToSong(songWithChartsEntity)
+        }
+    }
+
+    /**
+     * 将单个 SongWithChartsEntity 对象转换回 Song (原始数据模型)
+     */
+    fun mapSongWithChartsEntityToSong(songWithChartsEntity: SongWithChartsEntity): Song {
+        val songEntity = songWithChartsEntity.song
+        val chartEntities = songWithChartsEntity.charts
+
+        // 1. 创建 BasicInfo from SongEntity
+        val basicInfo = BasicInfo(
+            title = songEntity.title,
+            artist = songEntity.artist,
+            genre = songEntity.genre,
+            bpm = songEntity.bpm,
+            from = songEntity.from,
+            isNew = songEntity.isNew,
+            // 注意: BasicInfo 原本可能还有 releaseDate 或其他字段，
+            // 如果 SongEntity 中没有，这里会缺失或需要默认值。
+            // title 在 Song 级别，不在 BasicInfo 中。
+            releaseDate = "" // 假设 releaseDate 在 SongEntity 中没有，提供默认值
+        )
+
+        // 2. 将 List<ChartEntity> 转换回 List<Chart> (model)
+        // 并从中提取 ds 和 level 列表
+        // 注意：原始 Song.charts 的顺序很重要，它与 ds 和 level 列表的索引对应。
+        // 我们需要根据 ChartEntity.difficulty 来尝试恢复这个顺序。
+
+        // 定义标准难度顺序以便排序
+        val difficultyOrder = mapOf(
+            DifficultyType.BASIC to 0,
+            DifficultyType.ADVANCED to 1,
+            DifficultyType.EXPERT to 2,
+            DifficultyType.MASTER to 3,
+            DifficultyType.REMASTER to 4,
+            DifficultyType.UTAGE to 5, // 假设宴会場谱面放在最后或有特定顺序
+            DifficultyType.UTAGE2P to 6
+        )
+
+        // 根据难度排序 ChartEntities 来尝试恢复原始顺序
+        val sortedChartEntities = chartEntities.sortedBy { difficultyOrder[it.difficulty] ?: Int.MAX_VALUE }
+
+        val chartsModelList = mutableListOf<Chart>()
+        val dsList = mutableListOf<Double>()
+        val levelList = mutableListOf<String>()
+        // 假设 cids 在实体中没有直接对应，如果需要，要找到恢复它的方法
+        val cidsList = mutableListOf<Int>() // 默认为空，因为实体中没有直接来源
+
+        sortedChartEntities.forEach { chartEntity ->
+            val notesArray = intArrayOf(
+                chartEntity.notesTap,
+                chartEntity.notesHold,
+                chartEntity.notesSlide,
+                chartEntity.notesTouch,
+                chartEntity.notesBreak
+            )
+            chartsModelList.add(
+                Chart(
+                    notes = notesArray.toList(), // 转换为 List<Int>
+                    charter = chartEntity.charter
+                )
+            )
+            dsList.add(chartEntity.ds)
+            levelList.add(chartEntity.level)
+            // cidsList.add(...) // 如果可以从 chartEntity 推断出 cid
+        }
+
+        // 3. 创建 Song 对象
+        return Song(
+            id = songEntity.id,
+            title = songEntity.title,
+            type = songEntity.type, // 来自 SongEntity
+            ds = dsList,
+            level = levelList,
+            cids = cidsList, // 可能为空或需要其他逻辑恢复
+            charts = chartsModelList,
+            basicInfo = basicInfo
+        )
+    }
+
 }

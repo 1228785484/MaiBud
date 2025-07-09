@@ -41,13 +41,15 @@ import com.sevengod.maibud.data.entities.UserProfile
 import com.sevengod.maibud.ui.activities.LoginActivity
 import com.sevengod.maibud.ui.theme.MaiBudTheme
 import com.sevengod.maibud.data.viewmodels.LoginViewModel
+import com.sevengod.maibud.data.viewmodels.MusicViewModel
 
 
 @Composable
 fun ProfileFragment(
     modifier: Modifier = Modifier,
     loginViewModel: LoginViewModel? = null,
-    onLoginRequest: () -> Unit = {}
+    onLoginRequest: () -> Unit = {},
+    musicViewModel: MusicViewModel? = null
 ) {
     val ctx = LocalContext.current
     
@@ -101,8 +103,9 @@ fun ProfileFragment(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (isLoggedIn) {
+        if (isLoggedIn && musicViewModel != null) {
             LoggedInProfile(
+                musicViewModel = musicViewModel,
                 currentUser = currentUser!!,
                 onLogout = { loginViewModel?.logout() }
             )
@@ -116,11 +119,18 @@ fun ProfileFragment(
 
 @Composable
 private fun LoggedInProfile(
+    musicViewModel: MusicViewModel,
     currentUser: UserProfile,
     onLogout: () -> Unit
 ) {
     val userName = currentUser.username
-    val userRating = "1500" // 这里可以从用户数据中获取
+    
+    // 获取用户rating
+    LaunchedEffect(Unit) {
+        musicViewModel.getUserRating()
+    }
+    
+    val userRating = musicViewModel.rating
 
     // 个人信息顶部卡片
     Card(
@@ -175,12 +185,12 @@ private fun LoggedInProfile(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Test",
+                    text = "Todos",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "DataA",
+                    text = "可能会在这边放些UI",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 4.dp)
                 )
