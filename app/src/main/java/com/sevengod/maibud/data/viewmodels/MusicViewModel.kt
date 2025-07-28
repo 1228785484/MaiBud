@@ -35,7 +35,7 @@ class MusicViewModel(
 
     var dataInitState by mutableStateOf<DataInitState>(DataInitState.Idle)
         private set
-
+    //当前数据,会触发重组
     var localSongData by mutableStateOf<List<Song>?>(null)
         private set
 
@@ -106,6 +106,7 @@ class MusicViewModel(
 
                 // 强制刷新歌曲数据
                 SongUtil.forceRefreshSongData(context)
+                SongUtil.forceRefreshPlayerRecordData(context)
 
                 // 重新加载本地数据
                 loadLocalSongData()
