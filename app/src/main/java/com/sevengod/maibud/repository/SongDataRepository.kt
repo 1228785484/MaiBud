@@ -10,7 +10,6 @@ import com.sevengod.maibud.data.model.Song
 import com.sevengod.maibud.instances.DataBaseInstance
 import com.sevengod.maibud.instances.RetrofitInstance
 import com.sevengod.maibud.network.SongDataService
-import com.sevengod.maibud.utils.DBUtils
 import com.sevengod.maibud.utils.SongUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -60,7 +59,7 @@ object SongDataRepository {
     ) {
         return withContext(Dispatchers.IO) {
             val pair = SongUtil.mapSongsToEntities(songs)
-            val DB = DBUtils.getDatabase(context)
+            val DB = DataBaseInstance.getInstance(context)
             DB.songDao().clearSongs()
             DB.chartDao().clearCharts()
             DB.songDao().insertAll(pair.first)
@@ -75,7 +74,7 @@ object SongDataRepository {
         name: String? = null
     ): List<SongWithChartsEntity> {
         return withContext(Dispatchers.IO) {
-            val songWithChartsDao = DBUtils.getDatabase(context).songWithChartsDao()
+            val songWithChartsDao = DataBaseInstance.getInstance(context).songWithChartsDao()
             songWithChartsDao.searchSongsWithCharts(name, minDs, maxDs)
         }
     }

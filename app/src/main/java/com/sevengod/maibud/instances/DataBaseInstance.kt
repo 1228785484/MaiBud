@@ -1,6 +1,8 @@
 package com.sevengod.maibud.instances
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.sevengod.maibud.data.dao.ChartDao
 import com.sevengod.maibud.data.dao.UserDao
@@ -23,4 +25,24 @@ abstract class DataBaseInstance : RoomDatabase() {
     abstract fun songDao(): SongDao
     abstract fun chartDao(): ChartDao
     abstract fun songWithChartsDao(): SongWithChartsDao
+
+    companion object {
+        const val DATABASE_VERSION = 1
+        const val DATABASE_NAME = "maibud_app_database"
+
+        @Volatile
+        private lateinit var instance: DataBaseInstance
+        fun getInstance(context: Context): DataBaseInstance {
+            if (!::instance.isInitialized) {
+                synchronized(this) {
+                    instance = Room.databaseBuilder(
+                        context.applicationContext,
+                        DataBaseInstance::class.java,
+                        DATABASE_NAME
+                    ).build()
+                }
+            }
+            return instance
+        }
+    }
 }

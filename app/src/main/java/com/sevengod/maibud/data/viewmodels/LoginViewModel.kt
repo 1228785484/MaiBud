@@ -7,13 +7,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.room.Database
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.sevengod.maibud.data.entities.UserProfile
 import com.sevengod.maibud.data.model.LoginResponse // Assuming LoginResponse is in data.model
+import com.sevengod.maibud.instances.DataBaseInstance
 import com.sevengod.maibud.repository.LoginRepository
-import com.sevengod.maibud.utils.DBUtils
 import com.sevengod.maibud.utils.DSUtils
 import kotlinx.coroutines.launch
 
@@ -105,7 +106,8 @@ class LoginViewModel(
      */
     private suspend fun saveUserToDatabase(loginResponse: LoginResponse) {
         try {
-            val database = DBUtils.getDatabase(context)
+            //修复错误
+            val database = DataBaseInstance.getInstance(context)
             val userDao = database.userDao()
 
             // 创建用户资料对象

@@ -15,8 +15,8 @@ import com.sevengod.maibud.utils.DSUtils
 import com.sevengod.maibud.utils.SongUtil
 import com.sevengod.maibud.data.entities.RecordEntity
 import com.sevengod.maibud.data.model.Record
+import com.sevengod.maibud.repository.RecordRepository
 import com.sevengod.maibud.repository.SongDataRepository
-import com.sevengod.maibud.utils.DBUtils
 import kotlinx.coroutines.launch
 
 // 定义数据初始化状态
@@ -167,7 +167,7 @@ class MusicViewModel(
         viewModelScope.launch {
             try {
                 Log.d(TAG, "开始同步数据到数据库...")
-                val success = DBUtils.syncLocalDataToDatabase(context)
+                val success = RecordRepository.syncLocalDataToDatabase(context)
                 if (success) {
                     Log.d(TAG, "数据同步成功")
                 } else {
@@ -184,7 +184,7 @@ class MusicViewModel(
      */
     suspend fun getDatabaseRecordCount(): Int {
         return try {
-            DBUtils.getRecordCount(context)
+            RecordRepository.getRecordCount(context)
         } catch (e: Exception) {
             Log.e(TAG, "获取数据库记录数量失败", e)
             0
@@ -196,7 +196,7 @@ class MusicViewModel(
      */
     suspend fun getRecordsBySongId(songId: Int): List<RecordEntity> {
         return try {
-            DBUtils.getRecordsBySongId(context, songId)
+            RecordRepository.getRecordsBySongId(context, songId)
         } catch (e: Exception) {
             Log.e(TAG, "获取歌曲记录失败", e)
             emptyList()

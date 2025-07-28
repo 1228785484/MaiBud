@@ -20,6 +20,7 @@ import com.sevengod.maibud.data.entities.DifficultyType
 import com.sevengod.maibud.data.entities.SongWithChartsEntity
 import com.sevengod.maibud.data.model.BasicInfo
 import com.sevengod.maibud.data.model.Chart
+import com.sevengod.maibud.repository.RecordRepository
 
 object SongUtil {
     const val LAST_SONG_UPDATE_DATE = "last_song_update_date"
@@ -155,7 +156,7 @@ object SongUtil {
             
             // 自动保存到数据库
             try {
-                DBUtils.savePlayerRecordToDB(context, playerRecords)
+                RecordRepository.savePlayerRecordToDB(context, playerRecords)
                 Log.d(TAG, "玩家记录数据已保存到数据库")
             } catch (e: Exception) {
                 Log.e(TAG, "保存玩家记录到数据库失败", e)
