@@ -38,13 +38,20 @@ interface SongWithChartsDao {
                             -- 并且 minDs/maxDs 至少一个非空，那么这里的逻辑可以保持。
                     )
                 )
+                -- 版本匹配（允许为空，如果为空则不限制版本）
+                AND (
+                    :version IS NULL 
+                    OR :version = '' 
+                    OR song_data.`from` = :version -- 假设 song_data 表中版本列名为 'version'
+                )
             )
         """
     )
     fun searchSongsWithCharts(
         searchText: String? = null,
-        minDs: Double? = null, // 新增：最小定数
-        maxDs: Double? = null  // 新增：最大定数
+        minDs: Double? = null, // 新增:最小定数
+        maxDs: Double? = null,  // 新增:最大定数
+        version: String? = null //新增:版本
     ): List<SongWithChartsEntity>
 
 }

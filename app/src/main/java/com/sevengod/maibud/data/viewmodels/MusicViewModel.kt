@@ -2,6 +2,7 @@ package com.sevengod.maibud.data.viewmodels
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +18,8 @@ import com.sevengod.maibud.data.entities.RecordEntity
 import com.sevengod.maibud.data.model.Record
 import com.sevengod.maibud.repository.RecordRepository
 import com.sevengod.maibud.repository.SongDataRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 // 定义数据初始化状态
@@ -35,16 +38,16 @@ class MusicViewModel(
 
     var dataInitState by mutableStateOf<DataInitState>(DataInitState.Idle)
         private set
+
     //当前数据,会触发重组
-    var localSongData by mutableStateOf<List<Song>?>(null)
+    var localSongData = MutableStateFlow<List<Song>>(emptyList())
         private set
 
-    var localRecordData by mutableStateOf<List<Record>?>(null)
+    var localRecordData = MutableStateFlow<List<Record>>(emptyList())
         private set
 
     var rating: Int by mutableIntStateOf(0)
         private set
-
 
 
     init {
@@ -88,8 +91,11 @@ class MusicViewModel(
      */
     private suspend fun loadLocalSongData() {
         try {
-            localSongData = SongUtil.getLocalSongData(context)
-            Log.d(TAG, "本地歌曲数据加载完成: ${localSongData?.size ?: 0} 首")
+            val songs = SongUtil.getLocalSongData(context)
+            if (songs != null) {
+                localSongData.value = songs
+            }
+            Log.d(TAG, "本地歌曲数据加载完成: ${localSongData.value?.size ?: 0} 首")
         } catch (e: Exception) {
             Log.e(TAG, "加载本地歌曲数据失败", e)
         }
@@ -110,6 +116,7 @@ class MusicViewModel(
 
                 // 重新加载本地数据
                 loadLocalSongData()
+                loadLocalRecordData()
 
                 dataInitState = DataInitState.Success
                 Log.d(TAG, "数据刷新完成")
@@ -124,7 +131,7 @@ class MusicViewModel(
     /**
      * 获取歌曲数据
      */
-    fun getSongData(): List<Song>? {
+    fun getSongData(): MutableStateFlow<List<Song>> {
         return localSongData
     }
 
@@ -132,14 +139,14 @@ class MusicViewModel(
      * 根据ID查找歌曲
      */
     fun findSongById(id: Int): Song? {
-        return localSongData?.find { it.id == id }
+        return localSongData.value?.find { it.id == id }
     }
 
     /**
      * 根据标题搜索歌曲
      */
     fun searchSongsByTitle(title: String): List<Song> {
-        return localSongData?.filter {
+        return localSongData.value?.filter {
             it.title.contains(title, ignoreCase = true)
         } ?: emptyList()
     }
@@ -153,8 +160,11 @@ class MusicViewModel(
 
     private suspend fun loadLocalRecordData() {
         try {
-            localRecordData = SongUtil.getLocalPlayerRecordData(context)?.records
-            Log.d(TAG, "本地游玩记录数据加载完成: ${localSongData?.size ?: 0} 首")
+            val playerRecordData = SongUtil.getLocalPlayerRecordData(context)
+            if (playerRecordData != null) {
+                localRecordData.value = playerRecordData.records
+            }
+            Log.d(TAG, "本地游玩记录数据加载完成: ${localSongData.value?.size ?: 0} 首")
         } catch (e: Exception) {
             Log.e(TAG, "加载本地游玩记录数据失败", e)
         }
@@ -187,7 +197,7 @@ class MusicViewModel(
             RecordRepository.getRecordCount(context)
         } catch (e: Exception) {
             Log.e(TAG, "获取数据库记录数量失败", e)
-            0
+
         }
     }
 
@@ -202,16 +212,23 @@ class MusicViewModel(
             emptyList()
         }
     }
-    fun getUserRating(){
+
+    fun getUserRating() {
         viewModelScope.launch {
             rating = SongUtil.getLocalPlayerRecordData(context)?.rating ?: 0
         }
     }
-    fun searchSongs(name: String? = null, minDs: Double? = null, maxDs: Double? = null) {
+
+    fun searchSongs(
+        name: String? = null,
+        minDs: Double? = null,
+        maxDs: Double? = null,
+        version: String? = null
+    ) {
         viewModelScope.launch {
             try {
-                val results = SongDataRepository.searchSongs(context,minDs, maxDs,name)
-                localSongData = SongUtil.mapSongWithChartsEntitiesToSongs(results)
+                val results = SongDataRepository.searchSongs(context, minDs, maxDs, name, version)
+                localSongData.value = SongUtil.mapSongWithChartsEntitiesToSongs(results)
             } catch (e: Exception) {
                 // 处理错误
             }

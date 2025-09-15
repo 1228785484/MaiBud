@@ -7,6 +7,9 @@ import com.sevengod.maibud.data.model.PlayerRecord
 import com.sevengod.maibud.data.model.Record
 import com.sevengod.maibud.instances.DataBaseInstance
 import com.sevengod.maibud.utils.SongUtil
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 
 object RecordRepository {
     /**
@@ -162,5 +165,18 @@ object RecordRepository {
             Log.e(TAG, "同步本地数据到数据库失败", e)
             false
         }
+    }
+    fun getB50RecordDataFlow(context: Context): Flow<List<RecordEntity>> { // Renamed for clarity and changed return type
+        val database = DataBaseInstance.getInstance(context)
+        val recordDao = database.recordDao()
+
+        return recordDao.getTop50RecordsByRating() // Directly return the Flow from DAO
+            .catch { e ->
+                Log.e(TAG, "获取B50记录 Flow 失败", e)
+                emit(emptyList()) // Emit an empty list in case of an error within the Flow
+            }
+        // No explicit try-catch needed here for the Flow emission itself,
+        // unless you are doing operations on the Flow within the repository
+        // before returning it. The .catch operator handles exceptions from the upstream Flow (DAO).
     }
 }

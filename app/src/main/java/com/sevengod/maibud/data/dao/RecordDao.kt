@@ -49,4 +49,8 @@ interface RecordDao {
 
     @Query("SELECT COUNT(*) FROM record")
     suspend fun getRecordCount(): Int
+
+    @Query("SELECT * FROM record ORDER BY ra DESC LIMIT 50")
+    fun getTop50RecordsByRating(): Flow<List<RecordEntity>>
+
 }

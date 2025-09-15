@@ -21,6 +21,7 @@ import com.sevengod.maibud.data.entities.SongWithChartsEntity
 import com.sevengod.maibud.data.model.BasicInfo
 import com.sevengod.maibud.data.model.Chart
 import com.sevengod.maibud.repository.RecordRepository
+import com.sevengod.maibud.ui.fragments.calculateRealId
 
 object SongUtil {
     const val LAST_SONG_UPDATE_DATE = "last_song_update_date"
@@ -29,7 +30,9 @@ object SongUtil {
     const val PLAYER_RECORD_DATA = "player_record_data"
     const val TAG = "song_util"
     private val gson = Gson()
-
+    fun getCoverId(int: Int): String{
+        return "https://www.diving-fish.com/covers/${int}.png"
+    }
     suspend fun getSongData(context: Context) {
         val today: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
         val todayDateString: String = today.toString()

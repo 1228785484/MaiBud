@@ -71,11 +71,12 @@ object SongDataRepository {
         context: Context,
         minDs: Double? = null,
         maxDs: Double? = null,
-        name: String? = null
+        name: String? = null,
+        version: String? = null
     ): List<SongWithChartsEntity> {
         return withContext(Dispatchers.IO) {
             val songWithChartsDao = DataBaseInstance.getInstance(context).songWithChartsDao()
-            songWithChartsDao.searchSongsWithCharts(name, minDs, maxDs)
+            songWithChartsDao.searchSongsWithCharts(name, minDs, maxDs,version)
         }
     }
 }

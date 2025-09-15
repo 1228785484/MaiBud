@@ -3,12 +3,15 @@ package com.sevengod.maibud.data.entities
 import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 import com.sevengod.maibud.R
 import kotlinx.parcelize.Parcelize
 
-@Entity(tableName = "record")
+@Entity(tableName = "record",
+    indices = [Index(value = ["song_id", "level_index"], unique = true)] // 唯一索引
+)
 @Parcelize
 data class RecordEntity(
     // 主键（自增长，默认值 0）

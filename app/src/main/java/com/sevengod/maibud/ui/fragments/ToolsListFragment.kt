@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.sevengod.maibud.ui.activities.B50Activity
 import com.sevengod.maibud.ui.activities.QRCodeActivity
 import com.sevengod.maibud.ui.theme.MaiBudTheme
 
@@ -26,7 +27,8 @@ import com.sevengod.maibud.ui.theme.MaiBudTheme
 fun ToolsListFragment(modifier: Modifier = Modifier) {
     val toolsList = listOf(
         "获取登录二维码",
-        "工具2",
+        //Todo
+        "B50获取",
         "工具3",
         "工具4",
         "工具5",
@@ -60,6 +62,10 @@ fun ToolsListFragment(modifier: Modifier = Modifier) {
                             when (tool) {
                                 "获取登录二维码" -> {
                                     val intent = Intent(context, QRCodeActivity::class.java)
+                                    context.startActivity(intent)
+                                }
+                                "B50获取" ->{
+                                    val intent = Intent(context, B50Activity::class.java)
                                     context.startActivity(intent)
                                 }
                                 // 可以在这里添加其他工具的跳转逻辑

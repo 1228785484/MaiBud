@@ -104,7 +104,7 @@ fun MaiBudApp(
             when (val state = viewModel.dataInitState) {
                 is DataInitState.Success -> {
                     snackbarHostState.showSnackbar(
-                        message = "数据初始化完成！歌曲数量: ${viewModel.getSongData()?.size ?: 0}",
+                        message = "数据初始化完成！歌曲数量: ${viewModel.localSongData.value.size}",
                         duration = SnackbarDuration.Short
                     )
                 }

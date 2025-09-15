@@ -26,7 +26,6 @@ object RetrofitInstance {
     fun initialize(context: Context) {
         appContext = context.applicationContext
     }
-
     val instance: Retrofit by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY

@@ -61,6 +61,7 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -89,7 +90,7 @@ fun MusicListFragment(
     musicViewModel: MusicViewModel? = null
 ) {
     var isMenuVisible by remember { mutableStateOf(false) }
-
+    val songList by musicViewModel?.localSongData?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     Box(
         modifier = modifier.fillMaxSize()
     ) {
@@ -131,7 +132,7 @@ fun MusicListFragment(
                 }
 
                 is DataInitState.Success -> {
-                    val songList = musicViewModel.getSongData() ?: emptyList()
+//                    val songList = musicViewModel.getSongData() ?: emptyList()
                     SuccessContent(
                         songList = songList,
                         musicViewModel = musicViewModel
@@ -353,7 +354,7 @@ private fun SongCard(
 
         // 监听页面变化，获取对应记录
         LaunchedEffect(song.id, page) {
-            currentRecord = musicViewModel?.localRecordData?.find { record ->
+            currentRecord = musicViewModel?.localRecordData?.value?.find { record ->
                 record.songId == song.id && record.levelIndex == page
             }
         }
